@@ -93,6 +93,9 @@ class Discoverer(pl.LightningModule):
         # buffer for best head tracking
         self.register_buffer("loss_per_head", torch.zeros(self.hparams.num_heads))
 
+        self.epoch = 0
+        self.preds_unlab_all = []
+
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(
             self.model.parameters(),
@@ -215,6 +218,9 @@ class Discoverer(pl.LightningModule):
                 ],
                 dim=-1,
             )
+
+            if labels[0] >= 80 and "test" in tag:
+                self.preds_unlab_all.append(preds_inc.detach().cpu().numpy())
         else:  # use supervised classifier
             preds = outputs["logits_lab"]
             best_head = torch.argmin(self.loss_per_head)
@@ -249,6 +255,11 @@ class Discoverer(pl.LightningModule):
             else:
                 self.log(prefix + "/acc", result)
                 self.log(prefix_inc + "/acc", result_inc)
+
+        self.preds_unlab_all = np.concatenate(self.preds_unlab_all)
+        np.save(f'unlab_logits_test_epoch{self.epoch}.npy', self.preds_unlab_all)
+        self.preds_unlab_all = []
+        self.epoch += 1
 
 
 def main(args):
